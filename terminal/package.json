@@ -1,0 +1,11 @@
+{
+  "name": "agentic-terminal",
+  "version": "0.1.0",
+  "description": "AI-powered multi-agent terminal interface",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}
