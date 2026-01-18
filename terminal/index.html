@@ -18,14 +18,14 @@
     .prompt-sym { color:#00ff41; font-size:15px; }
     .msg { margin-bottom:14px; }
     .msg-role { font-size:10px; color:#3d6e3d; margin-bottom:3px; letter-spacing:1px; font-weight:700; }
-    .user-msg .msg-role { color:#007a20; }
-    .ai-msg .msg-role { color:#005080; }
+    .s-cursor { display:inline-block; width:7px; height:13px; background:#00ff41; animation:blink .7s infinite; vertical-align:middle; margin-left:2px; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
   </style>
 </head>
 <body>
   <div id="header">
-    <span>▓ AI TERMINAL v0.2.0</span>
-    <span id="status" style="color:#00ff41;font-size:10px">● ONLINE</span>
+    <span>▓ AI TERMINAL v0.3.0</span>
+    <span style="color:#00ff41;font-size:10px">● STREAMING</span>
   </div>
   <div id="output"></div>
   <div id="input-area">
@@ -38,32 +38,50 @@
     const $in  = document.getElementById('input');
     const $btn = document.getElementById('send');
     const conversation = [];
+    let streaming = false;
 
-    function addMsg(role, text, cls) {
+    function addMsg(role, text, streaming=false) {
       const d = document.createElement('div');
-      d.className = 'msg ' + (cls || '');
-      d.innerHTML = '<div class="msg-role">' + role + '</div><div class="msg-body">' + text + '</div>';
+      d.className = 'msg';
+      d.innerHTML = '<div class="msg-role">' + role + '</div><div class="msg-body">' + (streaming?'<span class="s-cursor"></span>':text) + '</div>';
       $out.appendChild(d); $out.scrollTop = $out.scrollHeight; return d;
     }
 
-    addMsg('SYSTEM', 'Anthropic API connected. Type to chat.');
+    addMsg('SYSTEM', 'Streaming SSE connected. Responses appear in real time.');
 
     async function sendMsg(text) {
-      addMsg('YOU', text, 'user-msg');
+      if (streaming) return;
+      addMsg('YOU', text);
       conversation.push({ role: 'user', content: text });
-      $btn.disabled = true;
-      const aDiv = addMsg('AI', 'Thinking…', 'ai-msg');
+      streaming = true; $btn.disabled = true;
+      const aDiv = addMsg('AI', '', true);
       const body = aDiv.querySelector('.msg-body');
+      let full = '';
       try {
         const resp = await fetch('/api/chat', {
           method: 'POST', headers: {'Content-Type':'application/json'},
           body: JSON.stringify({ messages: conversation }),
         });
-        const data = await resp.json();
-        body.textContent = data.content || data.error;
-        if (data.content) conversation.push({ role: 'assistant', content: data.content });
+        const reader = resp.body.getReader();
+        const dec = new TextDecoder();
+        let buf = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split('\n'); buf = lines.pop();
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const d = JSON.parse(line.slice(6));
+              if (d.type === 'text') { full += d.text; body.innerHTML = full + '<span class="s-cursor"></span>'; $out.scrollTop=$out.scrollHeight; }
+            } catch {}
+          }
+        }
+        body.textContent = full;
+        conversation.push({ role: 'assistant', content: full });
       } catch(e) { body.textContent = 'Error: ' + e.message; }
-      $btn.disabled = false; $in.focus();
+      streaming = false; $btn.disabled = false; $in.focus();
     }
 
     $btn.addEventListener('click', () => { const v=$in.value.trim(); if(!v) return; $in.value=''; sendMsg(v); });
