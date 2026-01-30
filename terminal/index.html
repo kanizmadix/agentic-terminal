@@ -2,90 +2,113 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AI TERMINAL</title>
+  <title>AI MULTI-AGENT TERMINAL</title>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&display=swap" rel="stylesheet" />
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Fira Code',monospace; background:#010801; color:#b8f0b8; height:100vh; display:flex; flex-direction:column; }
-    #header { padding:8px 16px; background:#040f04; border-bottom:1px solid #0f2a0f; color:#00ff41; font-size:12px; font-weight:700; letter-spacing:2px; display:flex; justify-content:space-between; align-items:center; }
-    #output { flex:1; overflow-y:auto; padding:16px; font-size:13px; line-height:1.65; }
+    body { font-family:'Fira Code',monospace; background:#010801; color:#b8f0b8; height:100vh; display:flex; flex-direction:column; font-size:13px; }
+    #header { padding:7px 16px; background:#040f04; border-bottom:1px solid #0f2a0f; color:#00ff41; font-size:11px; font-weight:700; letter-spacing:2px; display:flex; justify-content:space-between; align-items:center; }
+    #tabs { display:flex; background:#040f04; border-bottom:1px solid #0f2a0f; }
+    .tab { padding:7px 20px; background:none; border:none; border-right:1px solid #0f2a0f; color:#3d6e3d; cursor:pointer; font-family:inherit; font-size:10px; letter-spacing:1.5px; transition:all .15s; position:relative; }
+    .tab:hover { color:#b8f0b8; }
+    .tab.active::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; }
+    .tab[data-a="researcher"].active { color:#00d4ff; } .tab[data-a="researcher"].active::after { background:#00d4ff; }
+    .tab[data-a="coder"].active { color:#00ff41; } .tab[data-a="coder"].active::after { background:#00ff41; }
+    .tab[data-a="creative"].active { color:#ff44ff; } .tab[data-a="creative"].active::after { background:#ff44ff; }
+    .tab[data-a="analyst"].active { color:#ffaa00; } .tab[data-a="analyst"].active::after { background:#ffaa00; }
+    #output { flex:1; overflow-y:auto; padding:14px 18px; }
     #output::-webkit-scrollbar { width:3px; } #output::-webkit-scrollbar-thumb { background:#005c18; }
-    #input-area { display:flex; align-items:center; padding:8px 16px; background:#040f04; border-top:1px solid #0f2a0f; gap:8px; }
-    #input { flex:1; background:none; border:none; outline:none; color:#b8f0b8; font-family:inherit; font-size:13px; caret-color:#00ff41; }
+    #input-area { border-top:1px solid #0f2a0f; background:#040f04; }
+    #input-wrap { display:flex; align-items:flex-end; padding:8px 12px; gap:8px; }
+    #input { flex:1; background:none; border:none; outline:none; color:#b8f0b8; font-family:inherit; font-size:13px; resize:none; max-height:100px; caret-color:#00ff41; }
     #input::placeholder { color:#3d6e3d; }
-    #send { background:none; border:1px solid #005c18; color:#00ff41; padding:5px 13px; cursor:pointer; font-family:inherit; font-size:10px; letter-spacing:1px; }
+    #send { background:none; border:1px solid #005c18; color:#00ff41; padding:5px 13px; cursor:pointer; font-family:inherit; font-size:10px; letter-spacing:1px; flex-shrink:0; }
     #send:hover { background:rgba(0,255,65,.09); } #send:disabled { opacity:.4; cursor:not-allowed; }
-    .prompt-sym { color:#00ff41; font-size:15px; }
+    #prompt-sym { color:#00d4ff; font-size:15px; flex-shrink:0; padding-bottom:2px; }
     .msg { margin-bottom:14px; }
-    .msg-role { font-size:10px; color:#3d6e3d; margin-bottom:3px; letter-spacing:1px; font-weight:700; }
+    .msg-hdr { font-size:9.5px; color:#3d6e3d; margin-bottom:3px; display:flex; gap:8px; }
+    .msg-hdr .role { font-weight:700; letter-spacing:1px; }
+    .msg-body { padding:8px 12px; border-left:2px solid #0f2a0f; line-height:1.65; }
     .s-cursor { display:inline-block; width:7px; height:13px; background:#00ff41; animation:blink .7s infinite; vertical-align:middle; margin-left:2px; }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
   </style>
 </head>
 <body>
-  <div id="header">
-    <span>▓ AI TERMINAL v0.3.0</span>
-    <span style="color:#00ff41;font-size:10px">● STREAMING</span>
+  <div id="header"><span>▓ AI MULTI-AGENT TERMINAL v0.4.0</span><span style="color:#3d6e3d;font-size:10px">claude-sonnet-4-6</span></div>
+  <div id="tabs">
+    <button class="tab active" data-a="researcher">◈ RESEARCHER</button>
+    <button class="tab" data-a="coder">⌥ CODER</button>
+    <button class="tab" data-a="creative">✦ CREATIVE</button>
+    <button class="tab" data-a="analyst">◎ ANALYST</button>
   </div>
   <div id="output"></div>
   <div id="input-area">
-    <span class="prompt-sym">❯</span>
-    <input id="input" placeholder="Type a message..." />
-    <button id="send">SEND ↵</button>
+    <div id="input-wrap">
+      <span id="prompt-sym">❯</span>
+      <textarea id="input" rows="1" placeholder="Message the active agent…"></textarea>
+      <button id="send">SEND ↵</button>
+    </div>
   </div>
   <script>
-    const $out = document.getElementById('output');
-    const $in  = document.getElementById('input');
-    const $btn = document.getElementById('send');
-    const conversation = [];
-    let streaming = false;
+    const AGENTS = {
+      researcher:{ label:'RESEARCHER', sym:'◈', color:'#00d4ff', greeting:'Research specialist online. Ask me anything.' },
+      coder:     { label:'CODER',      sym:'⌥', color:'#00ff41', greeting:'Code assistant ready. Ask me to build, debug or explain.' },
+      creative:  { label:'CREATIVE',   sym:'✦', color:'#ff44ff', greeting:'Creative engine initialized. What shall we create?' },
+      analyst:   { label:'ANALYST',    sym:'◎', color:'#ffaa00', greeting:'Strategic analyst online. Give me a problem to break down.' },
+    };
+    const S = { agent:'researcher', streaming:false, convos:{researcher:[],coder:[],creative:[],analyst:[]}, model:'claude-sonnet-4-6' };
+    const $out=$('#output'), $in=$('#input'), $btn=$('#send'), $psym=$('#prompt-sym');
+    function $(s){return document.getElementById(s)||document.querySelector(s);}
 
-    function addMsg(role, text, streaming=false) {
-      const d = document.createElement('div');
-      d.className = 'msg';
-      d.innerHTML = '<div class="msg-role">' + role + '</div><div class="msg-body">' + (streaming?'<span class="s-cursor"></span>':text) + '</div>';
-      $out.appendChild(d); $out.scrollTop = $out.scrollHeight; return d;
+    function ts(){return new Date().toLocaleTimeString('en-US',{hour12:false});}
+
+    function addMsg({role,content,agent,streaming=false}){
+      const cfg=AGENTS[agent||S.agent];
+      const d=document.createElement('div'); d.className='msg';
+      d.innerHTML=`<div class="msg-hdr"><span class="role" style="color:${role==='user'?'#00ff41':cfg.color}">${cfg.sym} ${role==='user'?'YOU':cfg.label}</span><span>${ts()}</span></div><div class="msg-body">${streaming?'<span class="s-cursor"></span>':content}</div>`;
+      $out.appendChild(d); $out.scrollTop=$out.scrollHeight; return d;
     }
 
-    addMsg('SYSTEM', 'Streaming SSE connected. Responses appear in real time.');
+    function switchAgent(a){
+      S.agent=a; const cfg=AGENTS[a];
+      document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.a===a));
+      $psym.style.color=cfg.color;
+      $out.innerHTML='';
+      const msgs=S.convos[a];
+      if(!msgs.length) addMsg({role:'assistant',content:cfg.greeting,agent:a});
+      else msgs.forEach(m=>addMsg({role:m.role,content:m.content,agent:a}));
+    }
 
-    async function sendMsg(text) {
-      if (streaming) return;
-      addMsg('YOU', text);
-      conversation.push({ role: 'user', content: text });
-      streaming = true; $btn.disabled = true;
-      const aDiv = addMsg('AI', '', true);
-      const body = aDiv.querySelector('.msg-body');
-      let full = '';
-      try {
-        const resp = await fetch('/api/chat', {
-          method: 'POST', headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ messages: conversation }),
-        });
-        const reader = resp.body.getReader();
-        const dec = new TextDecoder();
-        let buf = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += dec.decode(value, { stream: true });
-          const lines = buf.split('\n'); buf = lines.pop();
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            try {
-              const d = JSON.parse(line.slice(6));
-              if (d.type === 'text') { full += d.text; body.innerHTML = full + '<span class="s-cursor"></span>'; $out.scrollTop=$out.scrollHeight; }
-            } catch {}
+    async function sendMsg(text){
+      if(S.streaming) return;
+      const agent=S.agent;
+      addMsg({role:'user',content:text}); S.convos[agent].push({role:'user',content:text});
+      const aDiv=addMsg({role:'assistant',content:'',agent,streaming:true});
+      const body=aDiv.querySelector('.msg-body');
+      S.streaming=true; $btn.disabled=true;
+      let full='';
+      try{
+        const resp=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent,messages:S.convos[agent],model:S.model})});
+        const reader=resp.body.getReader(); const dec=new TextDecoder(); let buf='';
+        while(true){
+          const{done,value}=await reader.read(); if(done) break;
+          buf+=dec.decode(value,{stream:true}); const lines=buf.split('\n'); buf=lines.pop();
+          for(const line of lines){
+            if(!line.startsWith('data: ')) continue;
+            try{ const d=JSON.parse(line.slice(6)); if(d.type==='text'){full+=d.text; body.innerHTML=full+'<span class="s-cursor"></span>'; $out.scrollTop=$out.scrollHeight;} }catch{}
           }
         }
-        body.textContent = full;
-        conversation.push({ role: 'assistant', content: full });
-      } catch(e) { body.textContent = 'Error: ' + e.message; }
-      streaming = false; $btn.disabled = false; $in.focus();
+        body.textContent=full; if(full) S.convos[agent].push({role:'assistant',content:full});
+      }catch(e){body.textContent='Error: '+e.message;}
+      S.streaming=false; $btn.disabled=false;
     }
 
-    $btn.addEventListener('click', () => { const v=$in.value.trim(); if(!v) return; $in.value=''; sendMsg(v); });
-    $in.addEventListener('keydown', e => { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$btn.click();} });
+    document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>switchAgent(t.dataset.a)));
+    $btn.addEventListener('click',()=>{ const v=$in.value.trim(); if(!v) return; $in.value=''; $in.style.height='auto'; sendMsg(v); });
+    $in.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$btn.click();} });
+    $in.addEventListener('input',()=>{ $in.style.height='auto'; $in.style.height=Math.min($in.scrollHeight,100)+'px'; });
+
+    switchAgent('researcher');
   </script>
 </body>
 </html>
