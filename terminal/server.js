@@ -34,6 +34,17 @@ app.post('/api/chat', async (req, res) => {
   } catch (err) { res.write(`data: ${JSON.stringify({ type:'error', error:err.message })}\n\n`); res.end(); }
 });
 
+app.get('/api/search', async (req, res) => {
+  const { q } = req.query;
+  if (!q) return res.status(400).json({ error: 'Missing query' });
+  try {
+    const r = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=1`);
+    const d = await r.json();
+    res.json({ abstract: d.AbstractText, source: d.AbstractSource, url: d.AbstractURL, answer: d.Answer,
+      related: (d.RelatedTopics||[]).filter(t=>t.Text).slice(0,5).map(t=>({ text:t.Text, url:t.FirstURL })) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/agents', (_req, res) => res.json(Object.entries(AGENTS).map(([id,c])=>({ id, name:c.name, color:c.color }))));
 
 app.listen(PORT, () => console.log(`Server → http://localhost:${PORT}`));
