@@ -45,6 +45,16 @@ app.get('/api/search', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/api/wiki', async (req, res) => {
+  const { topic } = req.query;
+  if (!topic) return res.status(400).json({ error: 'Missing topic' });
+  try {
+    const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topic)}`);
+    const d = await r.json();
+    res.json({ title: d.title, extract: d.extract, url: d.content_urls?.desktop?.page });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/agents', (_req, res) => res.json(Object.entries(AGENTS).map(([id,c])=>({ id, name:c.name, color:c.color }))));
 
 app.listen(PORT, () => console.log(`Server → http://localhost:${PORT}`));
