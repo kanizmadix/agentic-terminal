@@ -55,6 +55,19 @@ app.get('/api/wiki', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/api/diagram', async (req, res) => {
+  const { description } = req.body;
+  if (!description) return res.status(400).json({ error: 'Missing description' });
+  try {
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 1024,
+      messages: [{ role:'user', content:`Generate a Mermaid.js diagram for: "${description}". Return ONLY the raw Mermaid code, no fences, no explanation.` }],
+    });
+    let diagram = msg.content[0].text.trim().replace(/^\`\`\`(?:mermaid)?\n?/, '').replace(/\n?\`\`\`$/, '').trim();
+    res.json({ diagram });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/agents', (_req, res) => res.json(Object.entries(AGENTS).map(([id,c])=>({ id, name:c.name, color:c.color }))));
 
 app.listen(PORT, () => console.log(`Server → http://localhost:${PORT}`));
