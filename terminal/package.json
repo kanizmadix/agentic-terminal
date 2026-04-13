@@ -1,12 +1,19 @@
 {
-  "name": "agentic-terminal",
-  "version": "0.2.0",
-  "description": "AI-powered multi-agent terminal interface",
+  "name": "ai-multi-agent-terminal",
+  "version": "1.0.0",
+  "description": "AI-powered hacker terminal with multiple agents — Researcher, Coder, Creative, Analyst",
   "main": "server.js",
-  "scripts": { "start": "node server.js" },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
     "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "puppeteer": "^24.41.0"
   }
 }
